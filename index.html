@@ -8,7 +8,7 @@
     <style>
       html, body { height: 100%; margin: 0; background: #111; color: #ddd; font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, 'Courier New', monospace; }
       #wrap { display: grid; place-items: center; height: 100%; gap: 12px; position: relative; }
-      canvas { image-rendering: pixelated; background: #000; box-shadow: 0 0 0 2px #222; touch-action: none; max-width: 100%; max-height: 100%; }
+      canvas { image-rendering: pixelated; background: #000; box-shadow: 0 0 0 2px #222; touch-action: none; max-width: 100%; max-height: 100%; contain: strict; will-change: contents; }
       #overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; }
       #panel { background: rgba(0,0,0,0.8); color: #fff; padding: 12px 16px; border: 1px solid #333; border-radius: 8px; min-width: 240px; text-align: center; }
       #panel h2 { margin: 0 0 8px 0; font-size: 16px; font-weight: 600; }
@@ -20,6 +20,12 @@
       #controls label { opacity: 0.85; }
       #controls select { padding: 4px 6px; background: #1a1a1a; color: #ddd; border: 1px solid #333; border-radius: 4px; }
       #controls input { width: 72px; padding: 4px 6px; background: #1a1a1a; color: #ddd; border: 1px solid #333; border-radius: 4px; }
+      #custom-controls { gap: 6px; align-items: center; }
+      #custom-controls:not([hidden]) { display: flex; }
+      #apply-custom { padding: 6px 12px; background: #1a7f37; color: #fff; border: 1px solid #2ea043; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+      #apply-custom:hover { background: #2ea043; }
+      #apply-custom:active { background: #1a6f2f; }
+      .error-hint { color: #f85149; font-size: 12px; margin-top: -4px; }
       #header-icons { position: absolute; top: 16px; right: 16px; display: flex; gap: 12px; z-index: 10; }
       #header-icons a { color: #666; transition: color 0.2s, transform 0.2s; display: flex; align-items: center; justify-content: center; }
       #header-icons a:hover { color: #ddd; transform: scale(1.1); }
@@ -49,7 +55,11 @@
           <option value="50">50</option>
           <option value="custom">Custom…</option>
         </select>
-        <input id="trial-custom" type="number" min="1" step="1" value="5" aria-label="Custom trials" hidden />
+        <div id="custom-controls" hidden>
+          <input id="trial-custom" type="number" min="1" max="999999" step="1" value="5" aria-label="Custom trials" />
+          <button id="apply-custom">Apply</button>
+        </div>
+        <span id="custom-error" class="error-hint" hidden></span>
       </div>
       <div id="overlay"><div id="panel">
         <h2 id="resultsTitle">Results (5 trials)</h2>
@@ -76,6 +86,9 @@
       const resetBtn = document.getElementById('reset');
       const trialSelect = document.getElementById('trial-count');
       const trialCustom = document.getElementById('trial-custom');
+      const customControls = document.getElementById('custom-controls');
+      const applyCustomBtn = document.getElementById('apply-custom');
+      const customError = document.getElementById('custom-error');
       const resultsTitle = document.getElementById('resultsTitle');
 
       function resizeCanvas() {
@@ -149,7 +162,8 @@
         let useWorker = false;
         let ctx = canvas.getContext('2d', { 
           alpha: false, 
-          desynchronized: true 
+          desynchronized: true,
+          willReadFrequently: false
         });
         ctx.imageSmoothingEnabled = false;
         ctx.fillStyle = '#0040c0';
@@ -175,17 +189,19 @@
         let prevState = -1;
         let readyAt = 0;
         let clickedAt = 0;
+        let isReady = false;
         const trials = [];
         let sessionOver = false;
         let trialGoal = parseInt(trialSelect.value, 10);
         let lastCustomValue = Math.max(1, parseInt(trialCustom.value, 10) || 5);
+        const paintMsg = { type: 'paint', state: 0, repaint: false, ms: 0 };
 
         if (Number.isNaN(trialGoal)) {
           trialGoal = lastCustomValue;
           trialSelect.value = 'custom';
-          trialCustom.hidden = false;
+          customControls.hidden = false;
         } else {
-          trialCustom.hidden = trialSelect.value !== 'custom';
+          customControls.hidden = trialSelect.value !== 'custom';
         }
 
         const updateResultsTitle = () => {
@@ -261,6 +277,9 @@
           if (s === 2 && prevState !== 2) {
             readyAt = now;
             clickedAt = 0;
+            isReady = true;
+          } else if (s !== 2 && prevState === 2) {
+            isReady = false;
           }
 
           if (!sessionOver && s === 3 && prevState !== 3) {
@@ -275,11 +294,16 @@
           const repaint = s !== prevState;
           if (repaint) prevState = s;
 
-          const ms = Math.round(clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms());
-          if (useWorker) {
-            worker.postMessage({ type: 'paint', state: s, repaint, ms });
-          } else {
-            paint(ctx, W, H, s, repaint, ms);
+          if (repaint || s === 0 || s === 3 || s === 4) {
+            const ms = Math.round(clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms());
+            if (useWorker) {
+              paintMsg.state = s;
+              paintMsg.repaint = repaint;
+              paintMsg.ms = ms;
+              worker.postMessage(paintMsg);
+            } else {
+              paint(ctx, W, H, s, repaint, ms);
+            }
           }
 
           requestAnimationFrame(frame);
@@ -292,6 +316,7 @@
           sessionOver = false;
           clickedAt = 0;
           readyAt = 0;
+          isReady = false;
           prevState = -1;
           last = performance.now();
           hideOverlay();
@@ -313,23 +338,10 @@
         };
         const press = (ts) => {
           if (sessionOver || pointerDown) return;
+          const capturedTime = (typeof ts === 'number' && ts > 0) ? ts : performance.now();
           pointerDown = true;
-          const s = exp.get_state();
-          if (s === 2 && readyAt > 0) {
-            clickedAt = (typeof ts === 'number' && ts > 0) ? ts : performance.now();
-            if (navigator.getPredictedEvents) {
-              try {
-                const predicted = navigator.getPredictedEvents();
-                if (predicted.length > 0) {
-                  for (let i = 0; i < predicted.length; i++) {
-                    if (predicted[i].type === 'pointerdown') {
-                      clickedAt = predicted[i].timeStamp;
-                      break;
-                    }
-                  }
-                }
-              } catch (e) { /* ignore */ }
-            }
+          if (isReady && readyAt > 0) {
+            clickedAt = capturedTime;
           }
           exp.on_action(1);
         };
@@ -364,10 +376,8 @@
           }
         }, { capture: true, passive: false });
         
-        let lastRawPointer = null;
         canvas.addEventListener('pointerrawupdate', (e) => {
-          lastRawPointer = e.timeStamp;
-          if (!pointerDown && exp.get_state() === 2 && e.pressure > 0) {
+          if (!pointerDown && isReady && e.pressure > 0) {
             press(e.timeStamp);
           }
         }, { capture: true, passive: true });
@@ -385,17 +395,59 @@
           resetSession();
         });
 
+        function validateCustomTrials() {
+          customError.hidden = true;
+          const val = trialCustom.value;
+          
+          if (val === '') {
+            customError.textContent = 'Please enter a number';
+            customError.hidden = false;
+            return null;
+          }
+          
+          const parsed = parseInt(val, 10);
+          
+          if (Number.isNaN(parsed)) {
+            customError.textContent = 'Must be a valid number';
+            customError.hidden = false;
+            return null;
+          }
+          
+          if (parsed < 1) {
+            customError.textContent = 'Must be at least 1';
+            customError.hidden = false;
+            return null;
+          }
+          
+          if (parsed > 999999) {
+            customError.textContent = 'Maximum is 999999';
+            customError.hidden = false;
+            return null;
+          }
+          
+          return parsed;
+        }
+
+        function applyCustomTrials() {
+          const validated = validateCustomTrials();
+          if (validated !== null) {
+            lastCustomValue = validated;
+            trialGoal = validated;
+            trialCustom.value = validated;
+            updateResultsTitle();
+            resetSession();
+          }
+        }
+
         trialSelect.addEventListener('change', () => {
           const sel = trialSelect.value;
           if (sel === 'custom') {
-            trialCustom.hidden = false;
-            const next = Math.max(1, parseInt(trialCustom.value, 10) || lastCustomValue);
-            lastCustomValue = next;
-            trialGoal = next;
-            updateResultsTitle();
-            resetSession();
+            customControls.hidden = false;
+            customError.hidden = true;
+            trialCustom.value = lastCustomValue;
           } else {
-            trialCustom.hidden = true;
+            customControls.hidden = true;
+            customError.hidden = true;
             const next = parseInt(sel, 10);
             if (Number.isNaN(next)) return;
             trialGoal = next;
@@ -404,20 +456,19 @@
           }
         });
 
-        trialCustom.addEventListener('change', () => {
-          if (trialCustom.hidden) return;
-          const parsed = Math.max(1, parseInt(trialCustom.value, 10) || lastCustomValue);
-          lastCustomValue = parsed;
-          trialGoal = parsed;
-          updateResultsTitle();
-          resetSession();
+        applyCustomBtn.addEventListener('click', () => {
+          applyCustomTrials();
         });
 
         trialCustom.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
-            trialCustom.dispatchEvent(new Event('change'));
+            applyCustomTrials();
           }
+        });
+
+        trialCustom.addEventListener('input', () => {
+          customError.hidden = true;
         });
 
         requestAnimationFrame(frame);

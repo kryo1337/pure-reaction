@@ -50,7 +50,8 @@ self.onmessage = (e) => {
       W = msg.size.W; H = msg.size.H;
       ctx = canvas.getContext('2d', { 
         alpha: false, 
-        desynchronized: true 
+        desynchronized: true,
+        willReadFrequently: false
       });
       ctx.imageSmoothingEnabled = false;
       return;
