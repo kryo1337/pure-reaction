@@ -8,12 +8,15 @@
     <style>
       html, body { height: 100%; margin: 0; background: #111; color: #ddd; font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, 'Courier New', monospace; }
       #wrap { display: grid; place-items: center; height: 100%; gap: 12px; position: relative; }
-      canvas { image-rendering: pixelated; background: #000; box-shadow: 0 0 0 2px #222; touch-action: none; max-width: 100%; max-height: 100%; contain: strict; will-change: contents; }
-      #overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; }
+      canvas { image-rendering: pixelated; background: #000; box-shadow: 0 0 0 2px #222; touch-action: none; max-width: 100%; max-height: 100%; contain: strict; will-change: contents; transform: translateZ(0); transition: box-shadow 0.3s; }
+      canvas.waiting { box-shadow: 0 0 0 2px #c02030; }
+      #overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; content-visibility: auto; }
       #panel { background: rgba(0,0,0,0.8); color: #fff; padding: 12px 16px; border: 1px solid #333; border-radius: 8px; min-width: 240px; text-align: center; }
       #panel h2 { margin: 0 0 8px 0; font-size: 16px; font-weight: 600; }
       #panel .nums { display: grid; gap: 6px; margin: 8px 0; font-size: 14px; }
-      #panel button { margin-top: 8px; padding: 6px 10px; background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px; }
+      #panel button { margin-top: 8px; padding: 6px 10px; background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
+      #panel button:hover { background: #2a2a2a; border-color: #444; }
+      #panel button:active { background: #333; border-color: #555; }
       #hint { opacity: 0.8; font-size: 14px; }
       button { padding: 6px 10px; background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px; }
       #controls { display: flex; flex-direction: column; gap: 8px; align-items: center; color: #ccc; font-size: 14px; }
@@ -29,19 +32,26 @@
       #header-icons { position: absolute; top: 16px; right: 16px; display: flex; gap: 12px; z-index: 10; }
       #header-icons a { color: #666; transition: color 0.2s, transform 0.2s; display: flex; align-items: center; justify-content: center; }
       #header-icons a:hover { color: #ddd; transform: scale(1.1); }
+      #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #111; z-index: 30; transition: opacity 0.3s; }
+      #loading.hidden { opacity: 0; pointer-events: none; }
+      #loading span { color: #888; font-size: 14px; }
       #footer { position: absolute; bottom: 12px; left: 0; width: 100%; text-align: center; font-size: 12px; color: #444; z-index: 10; pointer-events: none; display: flex; flex-direction: column; gap: 4px; }
-      #footer a { color: #666; text-decoration: none; pointer-events: auto; transition: color 0.2s; }
-      #footer a:hover { color: #ddd; }
+      #footer a { color: #888; text-decoration: none; pointer-events: auto; transition: color 0.2s; }
+      #footer a:hover { color: #ccc; }
     </style>
   </head>
   <body>
+    <div id="loading"><span>Loading…</span></div>
     <div id="wrap">
       <div id="header-icons">
         <a href="https://buymeacoffee.com/kryo" target="_blank" aria-label="Buy Me a Coffee">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M20 3H4v10c0 2.21 1.79 4 4 4h6c2.21 0 4-1.79 4-4v-3h2c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 5h-2V5h2v3M4 19h16v2H4z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
+        </a>
+        <a href="https://x.com/kryoxd" target="_blank" aria-label="X">
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
         </a>
         <a href="https://github.com/kryo1337/pure-reaction" target="_blank" aria-label="GitHub">
-          <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 1.19 6.44 1.54A3.37 3.37 0 0 0 9 15.13V19"/></svg>
         </a>
       </div>
       <canvas id="canvas" width="480" height="270"></canvas>
@@ -72,7 +82,7 @@
       </div></div>
       <div id="footer">
         <div>developed by <a href="https://kryo.dev" target="_blank">kryo</a></div>
-        <div>&copy; 2025 pureReaction</div>
+        <div>&copy; 2026 pureReaction</div>
       </div>
     </div>
     <script>
@@ -114,9 +124,10 @@
 
       const wasmPromise = loadWasm();
 
-      (async () => {
+        (async () => {
         const wasm = await wasmPromise;
         const exp = wasm.exports;
+        let isLoaded = false;
         const rect = canvas.getBoundingClientRect();
         let W = Math.floor(rect.width) || 480;
         let H = Math.floor(rect.height) || 270;
@@ -136,14 +147,12 @@
             } else {
               canvas.width = W;
               canvas.height = H;
-              // Context needs to be restored after resize clears it
               if (ctx) {
                 ctx.imageSmoothingEnabled = false;
-                ctx.font = '24px monospace';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
+                ctx.font = '24px monospace';
               }
-              // Force repaint by invalidating state
               prevState = -1;
             }
           }, 50);
@@ -166,12 +175,12 @@
           willReadFrequently: false
         });
         ctx.imageSmoothingEnabled = false;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '24px monospace';
         ctx.fillStyle = '#0040c0';
         ctx.fillRect(0, 0, W, H);
         ctx.fillStyle = '#ffffff';
-        ctx.font = '24px monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
         ctx.fillText('Click to begin', W >> 1, H >> 1);
 
         try {
@@ -244,8 +253,6 @@
             case 3: {
               ctx.fillStyle = '#ffcc00';
               ctx.font = '40px monospace';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
               ctx.fillText(ms + ' ms', W >> 1, H >> 1);
               ctx.font = '20px monospace';
               ctx.fillStyle = '#ffffff';
@@ -253,17 +260,13 @@
               break;
             }
             case 0:
-              ctx.fillStyle = '#ffffff';
               ctx.font = '24px monospace';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#ffffff';
               ctx.fillText('Click to begin', W >> 1, H >> 1);
               break;
             case 4:
-              ctx.fillStyle = '#ffffff';
               ctx.font = '28px monospace';
-              ctx.textAlign = 'center';
-              ctx.textBaseline = 'middle';
+              ctx.fillStyle = '#ffffff';
               ctx.fillText('False start! Click to restart trial', W >> 1, H >> 1);
               break;
           }
@@ -272,7 +275,6 @@
           const dt = now - last; last = now;
           exp.update(dt);
 
-          // 0=Idle(blue), 1=Waiting(red), 2=Ready(green), 3=Measured(purple), 4=FalseStart (red)
           const s = exp.get_state();
           if (s === 2 && prevState !== 2) {
             readyAt = now;
@@ -292,17 +294,17 @@
           }
 
           const repaint = s !== prevState;
-          if (repaint) prevState = s;
-
-          if (repaint || s === 0 || s === 3 || s === 4) {
+          if (repaint) {
+            prevState = s;
+            canvas.classList.toggle('waiting', s === 1);
             const ms = Math.round(clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms());
             if (useWorker) {
               paintMsg.state = s;
-              paintMsg.repaint = repaint;
+              paintMsg.repaint = true;
               paintMsg.ms = ms;
               worker.postMessage(paintMsg);
             } else {
-              paint(ctx, W, H, s, repaint, ms);
+              paint(ctx, W, H, s, true, ms);
             }
           }
 
@@ -320,6 +322,7 @@
           prevState = -1;
           last = performance.now();
           hideOverlay();
+          canvas.classList.remove('waiting');
           exp.on_action(0);
           exp.reset();
           seedRng();
@@ -330,14 +333,12 @@
             ctx.fillRect(0, 0, W, H);
             ctx.fillStyle = '#ffffff';
             ctx.font = '24px monospace';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
             ctx.fillText('Click to begin', W >> 1, H >> 1);
           }
           updateResultsTitle();
         };
         const press = (ts) => {
-          if (sessionOver || pointerDown) return;
+          if (!isLoaded || sessionOver || pointerDown) return;
           const capturedTime = (typeof ts === 'number' && ts > 0) ? ts : performance.now();
           pointerDown = true;
           if (isReady && readyAt > 0) {
@@ -350,39 +351,39 @@
           pointerDown = false;
           exp.on_action(0); 
         };
-        
-        window.addEventListener('keydown', (e) => { 
-          if (e.code === 'Space') { 
-            e.preventDefault(); 
-            press(e.timeStamp); 
+
+        window.addEventListener('keydown', (e) => {
+          if (e.code === 'Space') {
+            e.preventDefault();
+            press(e.timeStamp);
           } else if (e.code === 'KeyR') {
             e.preventDefault();
             resetSession();
           }
         }, { capture: true, passive: false });
-        window.addEventListener('keyup', (e) => { 
-          if (e.code === 'Space') { 
-            e.preventDefault(); 
-            release(); 
-          } 
-        }, { capture: true, passive: false });
+
+        window.addEventListener('keyup', (e) => {
+          if (e.code === 'Space') {
+            release();
+          }
+        }, { capture: true, passive: true });
         
         canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        canvas.addEventListener('pointerdown', (e) => { 
+        canvas.addEventListener('pointerdown', (e) => {
           if (e.button === 0) {
             e.preventDefault();
             canvas.setPointerCapture(e.pointerId);
             press(e.timeStamp);
           }
         }, { capture: true, passive: false });
-        
+
         canvas.addEventListener('pointerrawupdate', (e) => {
           if (!pointerDown && isReady && e.pressure > 0) {
             press(e.timeStamp);
           }
         }, { capture: true, passive: true });
-        
-        window.addEventListener('pointerup', (e) => { 
+
+        window.addEventListener('pointerup', (e) => {
           if (e.button === 0) {
             e.preventDefault();
             if (canvas.hasPointerCapture(e.pointerId)) {
@@ -470,6 +471,9 @@
         trialCustom.addEventListener('input', () => {
           customError.hidden = true;
         });
+
+        isLoaded = true;
+        document.getElementById('loading').classList.add('hidden');
 
         requestAnimationFrame(frame);
       })();

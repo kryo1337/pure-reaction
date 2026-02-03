@@ -17,8 +17,6 @@ function render(state, repaint, ms) {
     case 3: {
       ctx.fillStyle = '#ffcc00';
       ctx.font = '40px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
       ctx.fillText(ms + ' ms', W >> 1, H >> 1);
       ctx.font = '20px monospace';
       ctx.fillStyle = '#ffffff';
@@ -26,17 +24,13 @@ function render(state, repaint, ms) {
       break;
     }
     case 0:
-      ctx.fillStyle = '#ffffff';
       ctx.font = '24px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
       ctx.fillText('Click to begin', W >> 1, H >> 1);
       break;
     case 4:
-      ctx.fillStyle = '#ffffff';
       ctx.font = '28px monospace';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
+      ctx.fillStyle = '#ffffff';
       ctx.fillText('False start! Click to restart trial', W >> 1, H >> 1);
       break;
   }
@@ -63,7 +57,8 @@ self.onmessage = (e) => {
       }
       if (ctx) {
         ctx.imageSmoothingEnabled = false;
-        // Force full repaint (background + text) on resize
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
         render(msg.state, true, msg.ms || 0);
       }
       break;
