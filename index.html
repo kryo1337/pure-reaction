@@ -2,120 +2,351 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <meta
+      name="description"
+      content="A minimal, web-based reaction time game built with Zig and WebAssembly."
+    />
     <title>pureReaction</title>
-    <link rel="preload" href="reaction.wasm" as="fetch" type="application/wasm" crossorigin fetchpriority="high" />
+    <link rel="icon" href="data:," />
+    <link
+      rel="preload"
+      href="reaction.wasm"
+      as="fetch"
+      type="application/wasm"
+      crossorigin
+      fetchpriority="high"
+    />
     <style>
-      html, body { height: 100%; margin: 0; background: #111; color: #ddd; font-family: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Monaco, 'Courier New', monospace; }
-      #wrap { display: grid; place-items: center; height: 100%; gap: 12px; position: relative; }
-      canvas { image-rendering: pixelated; background: #000; box-shadow: 0 0 0 2px #222; touch-action: none; max-width: 100%; max-height: 100%; contain: strict; will-change: contents; transform: translateZ(0); transition: box-shadow 0.3s; }
-      canvas.waiting { box-shadow: 0 0 0 2px #c02030; }
-      #overlay { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; z-index: 20; content-visibility: auto; }
-      #panel { background: rgba(0,0,0,0.8); color: #fff; padding: 12px 16px; border: 1px solid #333; border-radius: 8px; min-width: 240px; text-align: center; }
-      #panel h2 { margin: 0 0 8px 0; font-size: 16px; font-weight: 600; }
-      #panel .nums { display: grid; gap: 6px; margin: 8px 0; font-size: 14px; }
-      #panel button { margin-top: 8px; padding: 6px 10px; background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px; cursor: pointer; transition: background 0.2s, border-color 0.2s; }
-      #panel button:hover { background: #2a2a2a; border-color: #444; }
-      #panel button:active { background: #333; border-color: #555; }
-      #hint { opacity: 0.8; font-size: 14px; }
-      button { padding: 6px 10px; background: #222; color: #ddd; border: 1px solid #333; border-radius: 6px; }
-      #controls { display: flex; flex-direction: column; gap: 8px; align-items: center; color: #ccc; font-size: 14px; }
-      #controls label { opacity: 0.85; }
-      #controls select { padding: 4px 6px; background: #1a1a1a; color: #ddd; border: 1px solid #333; border-radius: 4px; }
-      #controls input { width: 72px; padding: 4px 6px; background: #1a1a1a; color: #ddd; border: 1px solid #333; border-radius: 4px; }
-      #custom-controls { gap: 6px; align-items: center; }
-      #custom-controls:not([hidden]) { display: flex; }
-      #apply-custom { padding: 6px 12px; background: #1a7f37; color: #fff; border: 1px solid #2ea043; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
-      #apply-custom:hover { background: #2ea043; }
-      #apply-custom:active { background: #1a6f2f; }
-      .error-hint { color: #f85149; font-size: 12px; margin-top: -4px; }
-      #header-icons { position: absolute; top: 16px; right: 16px; display: flex; gap: 12px; z-index: 10; }
-      #header-icons a { color: #666; transition: color 0.2s, transform 0.2s; display: flex; align-items: center; justify-content: center; }
-      #header-icons a:hover { color: #ddd; transform: scale(1.1); }
-      #loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: #111; z-index: 30; transition: opacity 0.3s; }
-      #loading.hidden { opacity: 0; pointer-events: none; }
-      #loading span { color: #888; font-size: 14px; }
-      #footer { position: absolute; bottom: 12px; left: 0; width: 100%; text-align: center; font-size: 12px; color: #444; z-index: 10; pointer-events: none; display: flex; flex-direction: column; gap: 4px; }
-      #footer a { color: #888; text-decoration: none; pointer-events: auto; transition: color 0.2s; }
-      #footer a:hover { color: #ccc; }
+      html,
+      body {
+        height: 100vh;
+        height: 100dvh;
+        user-select: none;
+        -webkit-user-select: none;
+        -webkit-touch-callout: none;
+        margin: 0;
+        background: #111;
+        color: #ddd;
+        font-family:
+          ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Monaco,
+          "Courier New", monospace;
+        touch-action: none;
+      }
+      #wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        height: 100dvh;
+        gap: 16px;
+        position: relative;
+        box-sizing: border-box;
+        overflow: hidden;
+      }
+      canvas {
+        image-rendering: pixelated;
+        box-shadow: 0 0 0 2px #222;
+        touch-action: none;
+        max-width: 100%;
+        max-height: 100%;
+        contain: strict;
+        will-change: transform;
+        transform: translateZ(0);
+      }
+      canvas.waiting {
+        box-shadow: 0 0 0 2px #c80050;
+      }
+      #overlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 20;
+        content-visibility: auto;
+      }
+      #panel {
+        background: rgba(0, 0, 0, 0.8);
+        color: #fff;
+        padding: 12px 16px;
+        border: 1px solid #333;
+        border-radius: 8px;
+        min-width: 240px;
+        text-align: center;
+      }
+      #panel h2 {
+        margin: 0 0 8px 0;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      #panel .nums {
+        display: grid;
+        gap: 6px;
+        margin: 8px 0;
+        font-size: 14px;
+      }
+      #panel button {
+        margin-top: 8px;
+        padding: 6px 10px;
+        background: #222;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 6px;
+        cursor: pointer;
+        transition:
+          background 0.2s,
+          border-color 0.2s;
+      }
+      #panel button:hover {
+        background: #2a2a2a;
+        border-color: #444;
+      }
+      #panel button:active {
+        background: #333;
+        border-color: #555;
+      }
+      #hint {
+        opacity: 0.8;
+        font-size: 14px;
+      }
+      button {
+        padding: 6px 10px;
+        background: #222;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 6px;
+      }
+      #controls {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        margin-top: 16px;
+        color: #ccc;
+        font-size: 14px;
+      }
+      #controls .row {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+        align-items: center;
+      }
+      #controls label {
+        opacity: 0.85;
+      }
+      #controls select {
+        padding: 4px 6px;
+        background: #1a1a1a;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 4px;
+      }
+      #controls input {
+        width: 72px;
+        padding: 4px 6px;
+        background: #1a1a1a;
+        color: #ddd;
+        border: 1px solid #333;
+        border-radius: 4px;
+      }
+      #controls select:disabled,
+      #controls input:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+        pointer-events: none;
+      }
+      #custom-controls {
+        gap: 6px;
+        align-items: center;
+      }
+      #custom-controls:not([hidden]) {
+        display: flex;
+      }
+      .error-hint {
+        color: #f85149;
+        font-size: 12px;
+        margin-top: -4px;
+      }
+      #header-icons {
+        position: absolute;
+        top: 24px;
+        right: 24px;
+        display: flex;
+        gap: 12px;
+        z-index: 10;
+      }
+      #header-icons a {
+        color: #666;
+        transition:
+          color 0.2s,
+          transform 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #header-icons a:hover {
+        color: #ddd;
+        transform: scale(1.1);
+      }
+      #loading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #111;
+        z-index: 30;
+        transition: opacity 0.3s;
+      }
+      #loading.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loading span {
+        color: #888;
+        font-size: 14px;
+      }
+      #footer {
+        position: absolute;
+        bottom: 12px;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        font-size: 12px;
+        color: #444;
+        z-index: 10;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      #footer a {
+        color: #888;
+        text-decoration: none;
+        pointer-events: auto;
+        transition: color 0.2s;
+      }
+      #footer a:hover {
+        color: #ccc;
+      }
     </style>
   </head>
   <body>
     <div id="loading"><span>Loading…</span></div>
     <div id="wrap">
       <div id="header-icons">
-        <a href="https://buymeacoffee.com/kryo" target="_blank" aria-label="Buy Me a Coffee">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-        </a>
         <a href="https://x.com/kryoxd" target="_blank" aria-label="X">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4l11.733 16h4.267l-11.733 -16z"/><path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772"/></svg>
-        </a>
-        <a href="https://github.com/kryo1337/pure-reaction" target="_blank" aria-label="GitHub">
-          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 1.19 6.44 1.54A3.37 3.37 0 0 0 9 15.13V19"/></svg>
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 4l11.733 16h4.267l-11.733 -16z" />
+            <path d="M4 20l6.768 -6.768m2.46 -2.46l6.772 -6.772" />
+          </svg>
         </a>
       </div>
       <canvas id="canvas" width="480" height="270"></canvas>
       <div id="controls">
         <span id="hint">left click/space to react, r to reset</span>
-        <label for="trial-count">trials per session:</label>
-        <select id="trial-count">
-          <option value="5">5</option>
-          <option value="10">10</option>
-          <option value="25">25</option>
-          <option value="50">50</option>
-          <option value="custom">Custom…</option>
-        </select>
-        <div id="custom-controls" hidden>
-          <input id="trial-custom" type="number" min="1" max="999999" step="1" value="5" aria-label="Custom trials" />
-          <button id="apply-custom">Apply</button>
+        <div class="row">
+          <label for="trial-count">trials per session:</label>
+          <select id="trial-count">
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="custom">Custom…</option>
+          </select>
+          <div id="custom-controls" hidden>
+            <input
+              id="trial-custom"
+              type="number"
+              min="1"
+              max="999999"
+              step="1"
+              value="5"
+              aria-label="Custom trials"
+            />
+          </div>
         </div>
         <span id="custom-error" class="error-hint" hidden></span>
       </div>
-      <div id="overlay"><div id="panel">
-        <h2 id="resultsTitle">Results (5 trials)</h2>
-        <div class="nums">
-          <div id="avg">Average: -</div>
-          <div id="med">Median: -</div>
-          <div id="fast">Fastest: -</div>
+      <div id="overlay">
+        <div id="panel">
+          <h2 id="resultsTitle">Results (5 trials)</h2>
+          <div class="nums">
+            <div id="avg">Average: -</div>
+            <div id="med">Median: -</div>
+            <div id="fast">Fastest: -</div>
+          </div>
+          <button id="reset">Reset</button>
         </div>
-        <button id="reset">Reset</button>
-      </div></div>
+      </div>
       <div id="footer">
-        <div>developed by <a href="https://kryo.dev" target="_blank">kryo</a></div>
+        <div>
+          developed by <a href="https://kryo.dev" target="_blank">kryo</a>
+        </div>
         <div>&copy; 2026 pureReaction</div>
       </div>
     </div>
     <script>
-      const canvas = document.getElementById('canvas');
+      const canvas = document.getElementById("canvas");
       let offscreen;
       let worker;
-      const overlay = document.getElementById('overlay');
-      const avgEl = document.getElementById('avg');
-      const medEl = document.getElementById('med');
-      const fastEl = document.getElementById('fast');
-      const resetBtn = document.getElementById('reset');
-      const trialSelect = document.getElementById('trial-count');
-      const trialCustom = document.getElementById('trial-custom');
-      const customControls = document.getElementById('custom-controls');
-      const applyCustomBtn = document.getElementById('apply-custom');
-      const customError = document.getElementById('custom-error');
-      const resultsTitle = document.getElementById('resultsTitle');
+      let stateBuffer = null;
+      let stateView = null;
+      const overlay = document.getElementById("overlay");
+      const avgEl = document.getElementById("avg");
+      const medEl = document.getElementById("med");
+      const fastEl = document.getElementById("fast");
+      const resetBtn = document.getElementById("reset");
+      const trialSelect = document.getElementById("trial-count");
+      const trialCustom = document.getElementById("trial-custom");
+      const customControls = document.getElementById("custom-controls");
+
+      const customError = document.getElementById("custom-error");
+      const resultsTitle = document.getElementById("resultsTitle");
+
+      const STATE_COLORS = [
+        "#0040c0",
+        "#C80050",
+        "#00ff66",
+        "#8020c0",
+        "#C80050",
+      ];
 
       function resizeCanvas() {
-        const w = window.innerWidth - 24;
-        const h = Math.min(window.innerHeight - 120, 540);
-        canvas.style.width = w + 'px';
-        canvas.style.height = h + 'px';
+        const w = window.innerWidth - 32;
+        const h = window.innerHeight - 250;
+        canvas.style.width = w + "px";
+        canvas.style.height = Math.max(h, 240) + "px";
       }
-      window.addEventListener('resize', resizeCanvas);
+      window.addEventListener("resize", resizeCanvas);
       resizeCanvas();
 
       async function loadWasm() {
         if (WebAssembly.instantiateStreaming) {
-          const { instance } = await WebAssembly.instantiateStreaming(fetch('reaction.wasm'), {});
+          const { instance } = await WebAssembly.instantiateStreaming(
+            fetch("reaction.wasm"),
+            {},
+          );
           return instance;
         } else {
-          const response = await fetch('reaction.wasm');
+          const response = await fetch("reaction.wasm");
           const bytes = await response.arrayBuffer();
           const { instance } = await WebAssembly.instantiate(bytes, {});
           return instance;
@@ -124,34 +355,40 @@
 
       const wasmPromise = loadWasm();
 
-        (async () => {
+      (async () => {
         const wasm = await wasmPromise;
         const exp = wasm.exports;
         let isLoaded = false;
         const rect = canvas.getBoundingClientRect();
         let W = Math.floor(rect.width) || 480;
         let H = Math.floor(rect.height) || 270;
-        canvas.width = W; canvas.height = H;
+        canvas.width = W;
+        canvas.height = H;
         exp.init(W, H);
-        
+
         let resizeTimeout;
-        window.addEventListener('resize', () => {
+        window.addEventListener("resize", () => {
           clearTimeout(resizeTimeout);
           resizeTimeout = setTimeout(() => {
             const rect = canvas.getBoundingClientRect();
             W = Math.floor(rect.width);
             H = Math.floor(rect.height);
-            
+
             if (useWorker) {
-              worker.postMessage({ type: 'resize', size: { W, H }, state: exp.get_state(), ms: Math.round(exp.get_last_reaction_ms()) });
+              worker.postMessage({
+                type: "resize",
+                size: { W, H },
+                state: exp.get_state(),
+                ms: exp.get_last_reaction_ms(),
+              });
             } else {
               canvas.width = W;
               canvas.height = H;
               if (ctx) {
                 ctx.imageSmoothingEnabled = false;
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.font = '24px monospace';
+                ctx.textAlign = "center";
+                ctx.textBaseline = "middle";
+                ctx.font = "24px monospace";
               }
               prevState = -1;
             }
@@ -169,32 +406,36 @@
         seedRng();
 
         let useWorker = false;
-        let ctx = canvas.getContext('2d', { 
-          alpha: false, 
+        let ctx = canvas.getContext("2d", {
+          alpha: true,
           desynchronized: true,
-          willReadFrequently: false
+          willReadFrequently: false,
         });
         ctx.imageSmoothingEnabled = false;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.font = '24px monospace';
-        ctx.fillStyle = '#0040c0';
-        ctx.fillRect(0, 0, W, H);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillText('Click to begin', W >> 1, H >> 1);
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.font = "24px monospace";
+        canvas.style.backgroundColor = STATE_COLORS[0];
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText("Click to begin", W >> 1, H >> 1);
 
         try {
+          stateBuffer = new SharedArrayBuffer(8);
+          stateView = new Uint32Array(stateBuffer);
           offscreen = canvas.transferControlToOffscreen();
-          worker = new Worker('worker.js', { type: 'module' });
-          worker.postMessage({ type: 'init', canvas: offscreen, size: { W, H } }, [offscreen]);
-          worker.postMessage({ type: 'paint', state: exp.get_state(), repaint: true, ms: 0 });
+          worker = new Worker("worker.js", { type: "module" });
+          worker.postMessage(
+            { type: "init", canvas: offscreen, size: { W, H }, stateBuffer },
+            [offscreen],
+          );
           useWorker = true;
           ctx = null;
         } catch (err) {
           useWorker = false;
+          stateBuffer = null;
+          stateView = null;
         }
 
-        let last = performance.now();
         let prevState = -1;
         let readyAt = 0;
         let clickedAt = 0;
@@ -203,81 +444,83 @@
         let sessionOver = false;
         let trialGoal = parseInt(trialSelect.value, 10);
         let lastCustomValue = Math.max(1, parseInt(trialCustom.value, 10) || 5);
-        const paintMsg = { type: 'paint', state: 0, repaint: false, ms: 0 };
 
         if (Number.isNaN(trialGoal)) {
           trialGoal = lastCustomValue;
-          trialSelect.value = 'custom';
+          trialSelect.value = "custom";
           customControls.hidden = false;
         } else {
-          customControls.hidden = trialSelect.value !== 'custom';
+          customControls.hidden = trialSelect.value !== "custom";
         }
 
         const updateResultsTitle = () => {
-          resultsTitle.textContent = 'Results (' + trialGoal + ' trials)';
+          resultsTitle.textContent = "Results (" + trialGoal + " trials)";
         };
         updateResultsTitle();
 
         function showOverlay(a, m, f) {
-          avgEl.textContent = 'Average: ' + Math.round(a) + ' ms';
-          medEl.textContent = 'Median: ' + Math.round(m) + ' ms';
-          fastEl.textContent = 'Fastest: ' + Math.round(f) + ' ms';
-          overlay.style.display = 'flex';
+          avgEl.textContent = "Average: " + Math.round(a) + " ms";
+          medEl.textContent = "Median: " + Math.round(m) + " ms";
+          fastEl.textContent = "Fastest: " + Math.round(f) + " ms";
+          overlay.style.display = "flex";
           sessionOver = true;
         }
 
         function hideOverlay() {
-          overlay.style.display = 'none';
+          overlay.style.display = "none";
         }
 
         function computeStats(arr) {
           if (arr.length === 0) return { avg: 0, med: 0, fast: 0 };
           const sum = arr.reduce((a, b) => a + b, 0);
           const avg = sum / arr.length;
-          const sorted = arr.slice().sort((a,b) => a-b);
+          const sorted = arr.slice().sort((a, b) => a - b);
           const mid = sorted.length >> 1;
-          const med = (sorted.length % 2) ? sorted[mid] : (sorted[mid-1] + sorted[mid]) / 2;
+          const med =
+            sorted.length % 2
+              ? sorted[mid]
+              : (sorted[mid - 1] + sorted[mid]) / 2;
           const fast = sorted[0];
           return { avg, med, fast };
         }
         function paint(ctx, W, H, s, repaint, ms) {
           if (repaint) {
-            if (s === 0) ctx.fillStyle = '#0040c0';
-            else if (s === 1 || s === 4) ctx.fillStyle = '#c02030';
-            else if (s === 2) ctx.fillStyle = '#18a040';
-            else ctx.fillStyle = '#8020c0';
-            ctx.fillRect(0, 0, W, H);
+            ctx.clearRect(0, 0, W, H);
           }
 
           switch (s) {
             case 3: {
-              ctx.fillStyle = '#ffcc00';
-              ctx.font = '40px monospace';
-              ctx.fillText(ms + ' ms', W >> 1, H >> 1);
-              ctx.font = '20px monospace';
-              ctx.fillStyle = '#ffffff';
-              ctx.fillText('Click to begin next trial', W >> 1, (H >> 1) + 40);
+              ctx.fillStyle = "#ffcc00";
+              ctx.font = "40px monospace";
+              ctx.fillText(ms + " ms", W >> 1, H >> 1);
+              ctx.font = "20px monospace";
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText("Click to begin next trial", W >> 1, (H >> 1) + 40);
               break;
             }
             case 0:
-              ctx.font = '24px monospace';
-              ctx.fillStyle = '#ffffff';
-              ctx.fillText('Click to begin', W >> 1, H >> 1);
+              ctx.font = "24px monospace";
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText("Click to begin", W >> 1, H >> 1);
               break;
             case 4:
-              ctx.font = '28px monospace';
-              ctx.fillStyle = '#ffffff';
-              ctx.fillText('False start! Click to restart trial', W >> 1, H >> 1);
+              ctx.font = "28px monospace";
+              ctx.fillStyle = "#ffffff";
+              ctx.fillText(
+                "False start! Click to restart trial",
+                W >> 1,
+                H >> 1,
+              );
               break;
           }
         }
         function frame(now) {
-          const dt = now - last; last = now;
-          exp.update(dt);
+          const nowMs = now | 0;
+          exp.update(nowMs);
 
           const s = exp.get_state();
           if (s === 2 && prevState !== 2) {
-            readyAt = now;
+            readyAt = nowMs;
             clickedAt = 0;
             isReady = true;
           } else if (s !== 2 && prevState === 2) {
@@ -285,7 +528,8 @@
           }
 
           if (!sessionOver && s === 3 && prevState !== 3) {
-            const measured = Math.round(clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms());
+            const measured =
+              clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms();
             trials.push(measured);
             if (trials.length === trialGoal) {
               const { avg, med, fast } = computeStats(trials);
@@ -296,14 +540,14 @@
           const repaint = s !== prevState;
           if (repaint) {
             prevState = s;
-            canvas.classList.toggle('waiting', s === 1);
-            const ms = Math.round(clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms());
-            if (useWorker) {
-              paintMsg.state = s;
-              paintMsg.repaint = true;
-              paintMsg.ms = ms;
-              worker.postMessage(paintMsg);
-            } else {
+            canvas.classList.toggle("waiting", s === 1);
+            canvas.style.backgroundColor = STATE_COLORS[s] || STATE_COLORS[0];
+            const ms =
+              clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms();
+            if (useWorker && stateView) {
+              Atomics.store(stateView, 1, ms);
+              Atomics.store(stateView, 0, s);
+            } else if (ctx) {
               paint(ctx, W, H, s, true, ms);
             }
           }
@@ -314,138 +558,178 @@
         let pointerDown = false;
         const resetSession = () => {
           pointerDown = false;
+          trialSelect.disabled = false;
+          trialCustom.disabled = false;
           trials.length = 0;
           sessionOver = false;
           clickedAt = 0;
           readyAt = 0;
           isReady = false;
           prevState = -1;
-          last = performance.now();
           hideOverlay();
-          canvas.classList.remove('waiting');
+          canvas.classList.remove("waiting");
           exp.on_action(0);
           exp.reset();
           seedRng();
-          if (useWorker) {
-            worker.postMessage({ type: 'paint', state: exp.get_state(), repaint: true, ms: 0 });
+          canvas.style.backgroundColor = STATE_COLORS[0];
+          if (useWorker && stateView) {
+            Atomics.store(stateView, 0, exp.get_state());
+            Atomics.store(stateView, 1, 0);
           } else if (ctx) {
-            ctx.fillStyle = '#0040c0';
-            ctx.fillRect(0, 0, W, H);
-            ctx.fillStyle = '#ffffff';
-            ctx.font = '24px monospace';
-            ctx.fillText('Click to begin', W >> 1, H >> 1);
+            ctx.clearRect(0, 0, W, H);
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "24px monospace";
+            ctx.fillText("Click to begin", W >> 1, H >> 1);
           }
           updateResultsTitle();
         };
         const press = (ts) => {
           if (!isLoaded || sessionOver || pointerDown) return;
-          const capturedTime = (typeof ts === 'number' && ts > 0) ? ts : performance.now();
+
+          if (exp.get_state() === 0) {
+            if (trialSelect.value === "custom") {
+              const validated = validateCustomTrials();
+              if (validated === null) return;
+              trialGoal = validated;
+              lastCustomValue = validated;
+              updateResultsTitle();
+            }
+            trialSelect.disabled = true;
+            trialCustom.disabled = true;
+          }
+
+          const capturedTime =
+            typeof ts === "number" && ts > 0 ? ts | 0 : performance.now() | 0;
           pointerDown = true;
           if (isReady && readyAt > 0) {
             clickedAt = capturedTime;
           }
           exp.on_action(1);
         };
-        const release = () => { 
-          if (sessionOver) return; 
+        const release = () => {
+          if (sessionOver) return;
           pointerDown = false;
-          exp.on_action(0); 
+          exp.on_action(0);
         };
 
-        window.addEventListener('keydown', (e) => {
-          if (e.code === 'Space') {
-            e.preventDefault();
-            press(e.timeStamp);
-          } else if (e.code === 'KeyR') {
-            e.preventDefault();
-            resetSession();
-          }
-        }, { capture: true, passive: false });
-
-        window.addEventListener('keyup', (e) => {
-          if (e.code === 'Space') {
-            release();
-          }
-        }, { capture: true, passive: true });
-        
-        canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        canvas.addEventListener('pointerdown', (e) => {
-          if (e.button === 0) {
-            e.preventDefault();
-            canvas.setPointerCapture(e.pointerId);
-            press(e.timeStamp);
-          }
-        }, { capture: true, passive: false });
-
-        canvas.addEventListener('pointerrawupdate', (e) => {
-          if (!pointerDown && isReady && e.pressure > 0) {
-            press(e.timeStamp);
-          }
-        }, { capture: true, passive: true });
-
-        window.addEventListener('pointerup', (e) => {
-          if (e.button === 0) {
-            e.preventDefault();
-            if (canvas.hasPointerCapture(e.pointerId)) {
-              canvas.releasePointerCapture(e.pointerId);
+        window.addEventListener(
+          "keydown",
+          (e) => {
+            if (e.code === "Space") {
+              e.preventDefault();
+              press(e.timeStamp);
+            } else if (e.code === "KeyR") {
+              e.preventDefault();
+              resetSession();
             }
-            release();
-          }
-        }, { capture: true, passive: false });
-        resetBtn.addEventListener('click', () => {
+          },
+          { capture: true, passive: false },
+        );
+
+        window.addEventListener(
+          "keyup",
+          (e) => {
+            if (e.code === "Space") {
+              release();
+            }
+          },
+          { capture: true, passive: true },
+        );
+
+        canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+
+        const controls = document.getElementById("controls");
+        const panel = document.getElementById("panel");
+
+        window.addEventListener(
+          "pointerdown",
+          (e) => {
+            if (
+              controls.contains(e.target) ||
+              panel.contains(e.target) ||
+              e.target.closest("a")
+            )
+              return;
+            if (e.button === 0) {
+              e.preventDefault();
+              if (e.target === canvas) {
+                canvas.setPointerCapture(e.pointerId);
+              }
+              press(e.timeStamp);
+            }
+          },
+          { capture: true, passive: false },
+        );
+
+        window.addEventListener(
+          "pointerrawupdate",
+          (e) => {
+            if (!pointerDown && isReady && e.pressure > 0) {
+              press(e.timeStamp);
+            }
+          },
+          { capture: true, passive: true },
+        );
+
+        window.addEventListener(
+          "pointerup",
+          (e) => {
+            if (e.button === 0) {
+              e.preventDefault();
+              if (canvas.hasPointerCapture(e.pointerId)) {
+                canvas.releasePointerCapture(e.pointerId);
+              }
+              release();
+            }
+          },
+          { capture: true, passive: false },
+        );
+        resetBtn.addEventListener("click", () => {
           resetSession();
         });
 
         function validateCustomTrials() {
           customError.hidden = true;
           const val = trialCustom.value;
-          
-          if (val === '') {
-            customError.textContent = 'Please enter a number';
+
+          if (val === "") {
+            customError.textContent = "Please enter a number";
             customError.hidden = false;
             return null;
           }
-          
+
           const parsed = parseInt(val, 10);
-          
+
           if (Number.isNaN(parsed)) {
-            customError.textContent = 'Must be a valid number';
+            customError.textContent = "Must be a valid number";
             customError.hidden = false;
             return null;
           }
-          
+
           if (parsed < 1) {
-            customError.textContent = 'Must be at least 1';
+            customError.textContent = "Must be at least 1";
             customError.hidden = false;
             return null;
           }
-          
+
           if (parsed > 999999) {
-            customError.textContent = 'Maximum is 999999';
+            customError.textContent = "Maximum is 999999";
             customError.hidden = false;
             return null;
           }
-          
+
           return parsed;
         }
 
-        function applyCustomTrials() {
-          const validated = validateCustomTrials();
-          if (validated !== null) {
-            lastCustomValue = validated;
-            trialGoal = validated;
-            trialCustom.value = validated;
-            updateResultsTitle();
-            resetSession();
-          }
-        }
-
-        trialSelect.addEventListener('change', () => {
+        trialSelect.addEventListener("change", () => {
           const sel = trialSelect.value;
-          if (sel === 'custom') {
+          if (sel === "custom") {
             customControls.hidden = false;
             customError.hidden = true;
             trialCustom.value = lastCustomValue;
+            trialGoal = lastCustomValue;
+            updateResultsTitle();
+            resetSession();
           } else {
             customControls.hidden = true;
             customError.hidden = true;
@@ -457,27 +741,15 @@
           }
         });
 
-        applyCustomBtn.addEventListener('click', () => {
-          applyCustomTrials();
-        });
-
-        trialCustom.addEventListener('keydown', (e) => {
-          if (e.key === 'Enter') {
-            e.preventDefault();
-            applyCustomTrials();
-          }
-        });
-
-        trialCustom.addEventListener('input', () => {
+        trialCustom.addEventListener("input", () => {
           customError.hidden = true;
         });
 
         isLoaded = true;
-        document.getElementById('loading').classList.add('hidden');
+        document.getElementById("loading").classList.add("hidden");
 
         requestAnimationFrame(frame);
       })();
     </script>
   </body>
-  </html>
-
+</html>

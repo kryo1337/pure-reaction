@@ -1,7 +1,6 @@
 zig-out/
 .zig-cache/
 .vercel
-
 .github/workflows
 .gemini/
 gha-creds-*.json

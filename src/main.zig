@@ -8,23 +8,23 @@ fn xorshift64star() u64 {
     return rng_state *% 0x2545F4914F6CDD1D;
 }
 
-fn randomU32() u32 {
+inline fn randomU32() u32 {
     return @truncate(xorshift64star() >> 32);
 }
 
-const GameState = enum { Idle, Waiting, Ready, Measured, FalseStart };
+const GameState = enum(u32) { Idle = 0, Waiting = 1, Ready = 2, Measured = 3, FalseStart = 4 };
 var state: GameState = .Idle;
-var timer_ms: f64 = 0.0;
-var target_delay_ms: f64 = 0.0;
-var last_reaction_ms: f64 = 0.0;
+var start_time_ms: u32 = 0;
+var target_delay_ms: u32 = 0;
+var last_reaction_ms: u32 = 0;
 var clicked: bool = false;
 
 export fn init(width: u32, height: u32) void {
     _ = width;
     _ = height;
     state = .Idle;
-    timer_ms = 0.0;
-    last_reaction_ms = 0.0;
+    start_time_ms = 0;
+    last_reaction_ms = 0;
     clicked = false;
 }
 
@@ -36,46 +36,48 @@ export fn seed_rng(seed: u64) void {
     }
 }
 
-fn startWaiting() void {
+inline fn startWaiting(now_ms: u32) void {
     state = .Waiting;
-    timer_ms = 0.0;
+    start_time_ms = now_ms;
     const r = randomU32();
-    const delay = 1500.0 + @as(f64, @floatFromInt(r % 1501));
-    target_delay_ms = delay;
+    target_delay_ms = 1500 + (r % 1501);
 }
 
-export fn update(dt_ms: f64) void {
-    timer_ms += dt_ms;
+export fn update(now_ms: u32) void {
+    const elapsed: u32 = if (start_time_ms > 0 and now_ms >= start_time_ms)
+        now_ms - start_time_ms
+    else
+        0;
 
     switch (state) {
         .Idle => {
             if (clicked) {
                 clicked = false;
-                startWaiting();
+                startWaiting(now_ms);
             }
         },
         .Waiting => {
             if (clicked) {
                 clicked = false;
                 state = .FalseStart;
-                timer_ms = 0.0;
-            } else if (timer_ms >= target_delay_ms) {
+                start_time_ms = now_ms;
+            } else if (elapsed >= target_delay_ms) {
                 state = .Ready;
-                timer_ms = 0.0;
+                start_time_ms = now_ms;
             }
         },
         .Ready => {
             if (clicked) {
                 clicked = false;
-                last_reaction_ms = timer_ms;
+                last_reaction_ms = elapsed;
                 state = .Measured;
-                timer_ms = 0.0;
+                start_time_ms = now_ms;
             }
         },
         .Measured, .FalseStart => {
             if (clicked) {
                 clicked = false;
-                startWaiting();
+                startWaiting(now_ms);
             }
         },
     }
@@ -91,13 +93,13 @@ export fn get_state() u32 {
     return @intFromEnum(state);
 }
 
-export fn get_last_reaction_ms() f64 {
+export fn get_last_reaction_ms() u32 {
     return last_reaction_ms;
 }
 
 export fn reset() void {
     state = .Idle;
-    timer_ms = 0.0;
-    last_reaction_ms = 0.0;
+    start_time_ms = 0;
+    last_reaction_ms = 0;
     clicked = false;
 }

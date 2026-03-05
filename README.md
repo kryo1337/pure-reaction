@@ -6,6 +6,6 @@ This project is a minimal, web-based reaction time game built with **Zig** and *
 
 ## 🎮 Controls
 
--   **Space** or **Mouse Click**: Start / React
--   **R**: Reset the session
--   **Trials per session**: Adjust the number of measurements
+- **Space** or **Mouse Click**: Start / React
+- **R**: Reset the session
+- **Trials per session**: Adjust the number of measurements
