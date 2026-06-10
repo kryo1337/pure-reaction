@@ -4,3 +4,5 @@ zig-out/
 .github/workflows
 .gemini/
 gha-creds-*.json
+node_modules/
+dist/

@@ -14,13 +14,26 @@
     <link rel="icon" href="data:," />
     <link
       rel="preload"
-      href="reaction.wasm"
+      href="reaction.wasm?v=2"
       as="fetch"
       type="application/wasm"
       crossorigin
       fetchpriority="high"
     />
     <style>
+      :root {
+        --bg: #0b0c0f;
+        --surface: #15171c;
+        --surface-2: #1c1f26;
+        --border: #262a31;
+        --border-2: #343943;
+        --text: #e8eaed;
+        --muted: #9aa0a8;
+        --faint: #555b64;
+        --accent: #00ff66;
+        --warn: #9d7cff;
+        --danger: #f85149;
+      }
       html,
       body {
         height: 100vh;
@@ -29,8 +42,8 @@
         -webkit-user-select: none;
         -webkit-touch-callout: none;
         margin: 0;
-        background: #111;
-        color: #ddd;
+        background: var(--bg);
+        color: var(--text);
         font-family:
           ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Monaco,
           "Courier New", monospace;
@@ -43,14 +56,15 @@
         justify-content: center;
         height: 100vh;
         height: 100dvh;
-        gap: 16px;
+        gap: 14px;
         position: relative;
         box-sizing: border-box;
         overflow: hidden;
       }
       canvas {
         image-rendering: pixelated;
-        box-shadow: 0 0 0 2px #222;
+        box-shadow: 0 0 0 1px var(--border);
+        border-radius: 6px;
         touch-action: none;
         max-width: 100%;
         max-height: 100%;
@@ -61,6 +75,16 @@
       canvas.waiting {
         box-shadow: 0 0 0 2px #c80050;
       }
+      #status {
+        height: 16px;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        contain: content;
+      }
+      #status .pb {
+        color: var(--faint);
+      }
       #overlay {
         position: absolute;
         inset: 0;
@@ -68,93 +92,200 @@
         align-items: center;
         justify-content: center;
         z-index: 20;
+        background: rgba(11, 12, 15, 0.55);
         content-visibility: auto;
       }
+      #overlay.show {
+        display: flex;
+        animation: fade 0.18s ease-out;
+      }
+      @keyframes fade {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
       #panel {
-        background: rgba(0, 0, 0, 0.8);
-        color: #fff;
-        padding: 12px 16px;
-        border: 1px solid #333;
-        border-radius: 8px;
-        min-width: 240px;
+        background: var(--surface);
+        color: var(--text);
+        padding: 20px 24px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        min-width: 300px;
+        max-width: min(92vw, 420px);
         text-align: center;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
       }
       #panel h2 {
-        margin: 0 0 8px 0;
-        font-size: 16px;
+        margin: 0 0 4px 0;
+        font-size: 13px;
         font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--muted);
       }
-      #panel .nums {
+      #headline {
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--warn);
+        margin: 6px 0 2px;
+        font-variant-numeric: tabular-nums;
+      }
+      #headline span {
+        font-size: 16px;
+        color: var(--muted);
+        font-weight: 400;
+      }
+      #pb-line {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 12px;
+        min-height: 14px;
+      }
+      #pb-line .up {
+        color: var(--accent);
+      }
+      #stats {
         display: grid;
-        gap: 6px;
-        margin: 8px 0;
-        font-size: 14px;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--border);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+        margin: 0 0 12px;
+      }
+      #stats div {
+        background: var(--surface-2);
+        padding: 8px 6px;
+      }
+      #stats .k {
+        display: block;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--faint);
+        margin-bottom: 2px;
+      }
+      #stats .v {
+        font-size: 16px;
+        font-variant-numeric: tabular-nums;
+      }
+      #bars {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        margin: 0 0 14px;
+        max-height: 130px;
+        overflow-y: auto;
+        text-align: left;
+      }
+      .bar-row {
+        display: grid;
+        grid-template-columns: 22px 1fr 48px;
+        align-items: center;
+        gap: 8px;
+        font-size: 11px;
+        color: var(--muted);
+        font-variant-numeric: tabular-nums;
+      }
+      .bar-row .n {
+        text-align: right;
+        color: var(--faint);
+      }
+      .bar-row .ms {
+        text-align: right;
+      }
+      .bar-track {
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border);
+        overflow: hidden;
+      }
+      .bar-fill {
+        height: 100%;
+        border-radius: 3px;
+        background: var(--border-2);
+      }
+      .bar-row.best .bar-fill {
+        background: var(--accent);
+      }
+      .bar-row.best .ms {
+        color: var(--accent);
+      }
+      .bar-row.worst .bar-fill {
+        background: #c80050;
+      }
+      #bars-note {
+        font-size: 11px;
+        color: var(--faint);
+        margin: -8px 0 12px;
       }
       #panel button {
-        margin-top: 8px;
-        padding: 6px 10px;
-        background: #222;
-        color: #ddd;
-        border: 1px solid #333;
-        border-radius: 6px;
+        width: 100%;
+        padding: 9px 12px;
+        background: var(--surface-2);
+        color: var(--text);
+        border: 1px solid var(--border-2);
+        border-radius: 8px;
         cursor: pointer;
+        font-family: inherit;
+        font-size: 13px;
+        letter-spacing: 0.06em;
         transition:
-          background 0.2s,
-          border-color 0.2s;
+          background 0.15s,
+          border-color 0.15s;
       }
       #panel button:hover {
-        background: #2a2a2a;
-        border-color: #444;
+        background: #232730;
+        border-color: #454c58;
       }
       #panel button:active {
-        background: #333;
-        border-color: #555;
+        background: #2a2f3a;
       }
       #hint {
-        opacity: 0.8;
-        font-size: 14px;
-      }
-      button {
-        padding: 6px 10px;
-        background: #222;
-        color: #ddd;
-        border: 1px solid #333;
-        border-radius: 6px;
+        color: var(--muted);
+        font-size: 13px;
+        letter-spacing: 0.04em;
       }
       #controls {
         display: flex;
         flex-direction: column;
         align-items: center;
         gap: 8px;
-        margin-top: 16px;
-        color: #ccc;
-        font-size: 14px;
+        color: var(--muted);
+        font-size: 13px;
       }
       #controls .row {
         display: flex;
         flex-direction: row;
         flex-wrap: wrap;
         justify-content: center;
-        gap: 12px;
+        gap: 10px;
         align-items: center;
       }
       #controls label {
-        opacity: 0.85;
+        color: var(--faint);
+        letter-spacing: 0.04em;
       }
-      #controls select {
-        padding: 4px 6px;
-        background: #1a1a1a;
-        color: #ddd;
-        border: 1px solid #333;
-        border-radius: 4px;
+      #controls select,
+      #controls input {
+        padding: 5px 8px;
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        font-family: inherit;
+        font-size: 13px;
+      }
+      #controls select:focus-visible,
+      #controls input:focus-visible {
+        outline: 1px solid var(--border-2);
       }
       #controls input {
         width: 72px;
-        padding: 4px 6px;
-        background: #1a1a1a;
-        color: #ddd;
-        border: 1px solid #333;
-        border-radius: 4px;
       }
       #controls select:disabled,
       #controls input:disabled {
@@ -170,30 +301,40 @@
         display: flex;
       }
       .error-hint {
-        color: #f85149;
+        color: var(--danger);
         font-size: 12px;
         margin-top: -4px;
       }
+      #brand {
+        position: absolute;
+        top: 22px;
+        left: 24px;
+        z-index: 10;
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      #brand b {
+        color: var(--text);
+        font-weight: 600;
+      }
       #header-icons {
         position: absolute;
-        top: 24px;
+        top: 20px;
         right: 24px;
         display: flex;
         gap: 12px;
         z-index: 10;
       }
       #header-icons a {
-        color: #666;
-        transition:
-          color 0.2s,
-          transform 0.2s;
+        color: var(--faint);
+        transition: color 0.15s;
         display: flex;
         align-items: center;
         justify-content: center;
       }
       #header-icons a:hover {
-        color: #ddd;
-        transform: scale(1.1);
+        color: var(--text);
       }
       #loading {
         position: absolute;
@@ -201,7 +342,7 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #111;
+        background: var(--bg);
         z-index: 30;
         transition: opacity 0.3s;
       }
@@ -210,7 +351,7 @@
         pointer-events: none;
       }
       #loading span {
-        color: #888;
+        color: var(--faint);
         font-size: 14px;
       }
       #footer {
@@ -220,7 +361,7 @@
         width: 100%;
         text-align: center;
         font-size: 12px;
-        color: #444;
+        color: #3a3f47;
         z-index: 10;
         pointer-events: none;
         display: flex;
@@ -228,25 +369,26 @@
         gap: 4px;
       }
       #footer a {
-        color: #888;
+        color: var(--faint);
         text-decoration: none;
         pointer-events: auto;
-        transition: color 0.2s;
+        transition: color 0.15s;
       }
       #footer a:hover {
-        color: #ccc;
+        color: var(--muted);
       }
     </style>
   </head>
   <body>
     <div id="loading"><span>Loading…</span></div>
     <div id="wrap">
+      <div id="brand"><b>pure</b>Reaction</div>
       <div id="header-icons">
         <a href="https://x.com/kryoxd" target="_blank" aria-label="X">
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="24"
-            height="24"
+            width="22"
+            height="22"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -260,10 +402,11 @@
         </a>
       </div>
       <canvas id="canvas" width="480" height="270"></canvas>
+      <div id="status"></div>
       <div id="controls">
-        <span id="hint">left click/space to react, r to reset</span>
+        <span id="hint">click / space to react &middot; r to reset</span>
         <div class="row">
-          <label for="trial-count">trials per session:</label>
+          <label for="trial-count">trials per session</label>
           <select id="trial-count">
             <option value="5">5</option>
             <option value="10">10</option>
@@ -287,13 +430,18 @@
       </div>
       <div id="overlay">
         <div id="panel">
-          <h2 id="resultsTitle">Results (5 trials)</h2>
-          <div class="nums">
-            <div id="avg">Average: -</div>
-            <div id="med">Median: -</div>
-            <div id="fast">Fastest: -</div>
+          <h2 id="resultsTitle">Session &middot; 5 trials</h2>
+          <div id="headline">- <span>ms avg</span></div>
+          <div id="pb-line"></div>
+          <div id="stats">
+            <div><span class="k">average</span><span class="v" id="avg">-</span></div>
+            <div><span class="k">median</span><span class="v" id="med">-</span></div>
+            <div><span class="k">fastest</span><span class="v" id="fast">-</span></div>
+            <div><span class="k">slowest</span><span class="v" id="slow">-</span></div>
           </div>
-          <button id="reset">Reset</button>
+          <div id="bars"></div>
+          <div id="bars-note" hidden></div>
+          <button id="reset">go again (r)</button>
         </div>
       </div>
       <div id="footer">
@@ -313,6 +461,12 @@
       const avgEl = document.getElementById("avg");
       const medEl = document.getElementById("med");
       const fastEl = document.getElementById("fast");
+      const slowEl = document.getElementById("slow");
+      const headlineEl = document.getElementById("headline");
+      const pbLineEl = document.getElementById("pb-line");
+      const barsEl = document.getElementById("bars");
+      const barsNoteEl = document.getElementById("bars-note");
+      const statusEl = document.getElementById("status");
       const resetBtn = document.getElementById("reset");
       const trialSelect = document.getElementById("trial-count");
       const trialCustom = document.getElementById("trial-custom");
@@ -325,13 +479,34 @@
         "#0040c0",
         "#C80050",
         "#00ff66",
-        "#8020c0",
-        "#C80050",
+        "#1c1f26",
+        "#7a0c2e",
       ];
+
+      const LS_KEY = "pureReaction.v1";
+      let store = { bestFast: 0, bestAvg: 0, sessions: [] };
+      try {
+        const raw = localStorage.getItem(LS_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === "object") {
+            store.bestFast = +parsed.bestFast || 0;
+            store.bestAvg = +parsed.bestAvg || 0;
+            store.sessions = Array.isArray(parsed.sessions)
+              ? parsed.sessions.slice(-10)
+              : [];
+          }
+        }
+      } catch (_) {}
+      function saveStore() {
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify(store));
+        } catch (_) {}
+      }
 
       function resizeCanvas() {
         const w = window.innerWidth - 32;
-        const h = window.innerHeight - 250;
+        const h = window.innerHeight - 270;
         canvas.style.width = w + "px";
         canvas.style.height = Math.max(h, 240) + "px";
       }
@@ -339,14 +514,21 @@
       resizeCanvas();
 
       async function loadWasm() {
+        if (self.__WASM_B64) {
+          const b = atob(self.__WASM_B64);
+          const bytes = new Uint8Array(b.length);
+          for (let i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i);
+          const { instance } = await WebAssembly.instantiate(bytes, {});
+          return instance;
+        }
         if (WebAssembly.instantiateStreaming) {
           const { instance } = await WebAssembly.instantiateStreaming(
-            fetch("reaction.wasm"),
+            fetch("reaction.wasm?v=2"),
             {},
           );
           return instance;
         } else {
-          const response = await fetch("reaction.wasm");
+          const response = await fetch("reaction.wasm?v=2");
           const bytes = await response.arrayBuffer();
           const { instance } = await WebAssembly.instantiate(bytes, {});
           return instance;
@@ -417,15 +599,38 @@
         ctx.font = "24px monospace";
         canvas.style.backgroundColor = STATE_COLORS[0];
         ctx.fillStyle = "#ffffff";
-        ctx.fillText("Click to begin", W >> 1, H >> 1);
+        ctx.fillText("click to begin", W >> 1, H >> 1);
 
         try {
           stateBuffer = new SharedArrayBuffer(8);
           stateView = new Uint32Array(stateBuffer);
           offscreen = canvas.transferControlToOffscreen();
-          worker = new Worker("worker.js", { type: "module" });
+          worker = new Worker(
+            self.__WORKER_SRC
+              ? URL.createObjectURL(
+                  new Blob([self.__WORKER_SRC], { type: "text/javascript" }),
+                )
+              : "worker.js?v=2",
+            { type: "module" },
+          );
+          worker.onmessage = (e) => {
+            if (e.data.type === "onset") {
+              readyAt = e.data.abs - performance.timeOrigin;
+              isReady = true;
+              if (trialPending) {
+                trialPending = false;
+                recordTrial();
+              }
+            }
+          };
           worker.postMessage(
-            { type: "init", canvas: offscreen, size: { W, H }, stateBuffer },
+            {
+              type: "init",
+              canvas: offscreen,
+              size: { W, H },
+              stateBuffer,
+              colors: STATE_COLORS,
+            },
             [offscreen],
           );
           useWorker = true;
@@ -440,6 +645,9 @@
         let readyAt = 0;
         let clickedAt = 0;
         let isReady = false;
+        let rebasePending = false;
+        let trialPending = false;
+        let trialPendingSince = 0;
         const trials = [];
         let sessionOver = false;
         let trialGoal = parseInt(trialSelect.value, 10);
@@ -454,24 +662,108 @@
         }
 
         const updateResultsTitle = () => {
-          resultsTitle.textContent = "Results (" + trialGoal + " trials)";
+          resultsTitle.textContent = "Session · " + trialGoal + " trials";
         };
         updateResultsTitle();
 
-        function showOverlay(a, m, f) {
-          avgEl.textContent = "Average: " + Math.round(a) + " ms";
-          medEl.textContent = "Median: " + Math.round(m) + " ms";
-          fastEl.textContent = "Fastest: " + Math.round(f) + " ms";
-          overlay.style.display = "flex";
+        function updateStatus() {
+          let s = "";
+          if (!sessionOver && trials.length > 0) {
+            s = "trial " + trials.length + "/" + trialGoal;
+          } else if (!sessionOver) {
+            s = "trial 0/" + trialGoal;
+          }
+          if (store.bestFast > 0) {
+            s +=
+              (s ? "  ·  " : "") +
+              "best " +
+              Math.round(store.bestFast) +
+              " ms";
+          }
+          statusEl.textContent = s;
+        }
+        updateStatus();
+
+        function buildBars(arr, fast, slow) {
+          if (arr.length > 60) {
+            barsEl.innerHTML = "";
+            barsNoteEl.textContent =
+              arr.length + " trials — chart hidden for large sessions";
+            barsNoteEl.hidden = false;
+            return;
+          }
+          barsNoteEl.hidden = true;
+          const max = slow || 1;
+          let html = "";
+          for (let i = 0; i < arr.length; i++) {
+            const v = arr[i];
+            const pct = Math.max(4, Math.round((v / max) * 100));
+            let cls = "bar-row";
+            if (v === fast) cls += " best";
+            else if (v === slow && arr.length > 1) cls += " worst";
+            html +=
+              '<div class="' +
+              cls +
+              '"><span class="n">' +
+              (i + 1) +
+              '</span><div class="bar-track"><div class="bar-fill" style="width:' +
+              pct +
+              '%"></div></div><span class="ms">' +
+              Math.round(v) +
+              "</span></div>";
+          }
+          barsEl.innerHTML = html;
+        }
+
+        function showOverlay(a, m, f, s) {
+          headlineEl.innerHTML =
+            Math.round(a) + " <span>ms avg</span>";
+          avgEl.textContent = Math.round(a) + " ms";
+          medEl.textContent = Math.round(m) + " ms";
+          fastEl.textContent = Math.round(f) + " ms";
+          slowEl.textContent = Math.round(s) + " ms";
+          buildBars(trials, f, s);
+
+          let pb = "";
+          if (store.bestFast === 0 || f < store.bestFast) {
+            const prev = store.bestFast;
+            store.bestFast = f;
+            pb = prev
+              ? '<span class="up">new best ' +
+                Math.round(f) +
+                " ms (−" +
+                Math.round(prev - f) +
+                " ms)</span>"
+              : '<span class="up">first personal best: ' +
+                Math.round(f) +
+                " ms</span>";
+          } else {
+            pb = "personal best " + Math.round(store.bestFast) + " ms";
+          }
+          if (store.bestAvg === 0 || a < store.bestAvg) store.bestAvg = a;
+          store.sessions.push({ n: trials.length, avg: a, fast: f });
+          store.sessions = store.sessions.slice(-10);
+          const recent = store.sessions.slice(-5);
+          if (recent.length > 1) {
+            const rAvg =
+              recent.reduce((acc, x) => acc + x.avg, 0) / recent.length;
+            pb +=
+              " · recent avg " + Math.round(rAvg) + " ms";
+          }
+          pbLineEl.innerHTML = pb;
+          saveStore();
+
+          overlay.classList.add("show");
           sessionOver = true;
+          updateStatus();
         }
 
         function hideOverlay() {
-          overlay.style.display = "none";
+          overlay.classList.remove("show");
         }
 
         function computeStats(arr) {
-          if (arr.length === 0) return { avg: 0, med: 0, fast: 0 };
+          if (arr.length === 0) return { avg: 0, med: 0, fast: 0, slow: 0 };
           const sum = arr.reduce((a, b) => a + b, 0);
           const avg = sum / arr.length;
           const sorted = arr.slice().sort((a, b) => a - b);
@@ -480,8 +772,7 @@
             sorted.length % 2
               ? sorted[mid]
               : (sorted[mid - 1] + sorted[mid]) / 2;
-          const fast = sorted[0];
-          return { avg, med, fast };
+          return { avg, med, fast: sorted[0], slow: sorted[sorted.length - 1] };
         }
         function paint(ctx, W, H, s, repaint, ms) {
           if (repaint) {
@@ -490,67 +781,105 @@
 
           switch (s) {
             case 3: {
-              ctx.fillStyle = "#ffcc00";
+              ctx.fillStyle = "#9d7cff";
               ctx.font = "40px monospace";
               ctx.fillText(ms + " ms", W >> 1, H >> 1);
               ctx.font = "20px monospace";
               ctx.fillStyle = "#ffffff";
-              ctx.fillText("Click to begin next trial", W >> 1, (H >> 1) + 40);
+              ctx.fillText("click for next trial", W >> 1, (H >> 1) + 40);
               break;
             }
             case 0:
               ctx.font = "24px monospace";
               ctx.fillStyle = "#ffffff";
-              ctx.fillText("Click to begin", W >> 1, H >> 1);
+              ctx.fillText("click to begin", W >> 1, H >> 1);
               break;
             case 4:
-              ctx.font = "28px monospace";
+              ctx.font = "24px monospace";
               ctx.fillStyle = "#ffffff";
-              ctx.fillText(
-                "False start! Click to restart trial",
-                W >> 1,
-                H >> 1,
-              );
+              ctx.fillText("too soon — click to retry", W >> 1, H >> 1);
               break;
           }
         }
-        function frame(now) {
-          const nowMs = now | 0;
-          exp.update(nowMs);
+        function measuredMs() {
+          return clickedAt > 0 && readyAt > 0
+            ? Math.max(0, clickedAt - readyAt)
+            : exp.get_last_reaction_ms();
+        }
 
+        function recordTrial() {
+          trials.push(measuredMs());
+          updateStatus();
+          if (trials.length === trialGoal) {
+            const { avg, med, fast, slow } = computeStats(trials);
+            showOverlay(avg, med, fast, slow);
+          }
+        }
+
+        function syncState(now) {
           const s = exp.get_state();
-          if (s === 2 && prevState !== 2) {
-            readyAt = nowMs;
+          if (s === prevState) return;
+          const from = prevState;
+          prevState = s;
+
+          if (s === 1) {
             clickedAt = 0;
-            isReady = true;
-          } else if (s !== 2 && prevState === 2) {
+            readyAt = 0;
             isReady = false;
+            if (useWorker) {
+              worker.postMessage({
+                type: "arm",
+                deadlineAbs:
+                  performance.timeOrigin + exp.get_ready_deadline_ms(),
+              });
+            }
+          } else if (s === 2) {
+            isReady = true;
+            if (!useWorker) {
+              readyAt = now;
+              rebasePending = true;
+            }
+          } else if (from === 2) {
+            isReady = false;
+            rebasePending = false;
           }
 
-          if (!sessionOver && s === 3 && prevState !== 3) {
-            const measured =
-              clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms();
-            trials.push(measured);
-            if (trials.length === trialGoal) {
-              const { avg, med, fast } = computeStats(trials);
-              showOverlay(avg, med, fast);
+          if (!sessionOver && s === 3 && from !== 3) {
+            if (useWorker && clickedAt > 0 && readyAt === 0) {
+              trialPending = true;
+              trialPendingSince = performance.now();
+            } else {
+              recordTrial();
             }
           }
 
-          const repaint = s !== prevState;
-          if (repaint) {
-            prevState = s;
-            canvas.classList.toggle("waiting", s === 1);
+          canvas.classList.toggle("waiting", s === 1);
+          const ms = Math.round(measuredMs());
+          if (useWorker && stateView) {
+            Atomics.store(stateView, 1, ms);
+            Atomics.store(stateView, 0, s);
+          } else if (ctx) {
             canvas.style.backgroundColor = STATE_COLORS[s] || STATE_COLORS[0];
-            const ms =
-              clickedAt > 0 ? clickedAt - readyAt : exp.get_last_reaction_ms();
-            if (useWorker && stateView) {
-              Atomics.store(stateView, 1, ms);
-              Atomics.store(stateView, 0, s);
-            } else if (ctx) {
-              paint(ctx, W, H, s, true, ms);
+            paint(ctx, W, H, s, true, ms);
+          }
+        }
+
+        function frame(now) {
+          if (!useWorker && rebasePending) {
+            rebasePending = false;
+            if (clickedAt === 0 && exp.get_state() === 2) {
+              readyAt = now;
+              exp.rebase_ready(now | 0);
             }
           }
+
+          if (trialPending && now - trialPendingSince > 150) {
+            trialPending = false;
+            recordTrial();
+          }
+
+          exp.update(now | 0);
+          syncState(now);
 
           requestAnimationFrame(frame);
         }
@@ -565,6 +894,8 @@
           clickedAt = 0;
           readyAt = 0;
           isReady = false;
+          rebasePending = false;
+          trialPending = false;
           prevState = -1;
           hideOverlay();
           canvas.classList.remove("waiting");
@@ -579,9 +910,10 @@
             ctx.clearRect(0, 0, W, H);
             ctx.fillStyle = "#ffffff";
             ctx.font = "24px monospace";
-            ctx.fillText("Click to begin", W >> 1, H >> 1);
+            ctx.fillText("click to begin", W >> 1, H >> 1);
           }
           updateResultsTitle();
+          updateStatus();
         };
         const press = (ts) => {
           if (!isLoaded || sessionOver || pointerDown) return;
@@ -596,15 +928,19 @@
             }
             trialSelect.disabled = true;
             trialCustom.disabled = true;
+            updateStatus();
           }
 
           const capturedTime =
-            typeof ts === "number" && ts > 0 ? ts | 0 : performance.now() | 0;
+            typeof ts === "number" && ts > 0 ? ts : performance.now();
           pointerDown = true;
-          if (isReady && readyAt > 0) {
+          exp.update(capturedTime | 0);
+          if (exp.get_state() === 2) {
             clickedAt = capturedTime;
           }
           exp.on_action(1);
+          exp.update(capturedTime | 0);
+          syncState(capturedTime);
         };
         const release = () => {
           if (sessionOver) return;

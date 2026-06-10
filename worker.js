@@ -5,6 +5,10 @@ let W = 0,
 let stateBuffer = null;
 let stateView = null;
 let lastState = -1;
+let colors = [];
+let armed = false;
+let deadlineAbs = 0;
+let reportOnset = false;
 
 let textIdle = null;
 let textMeasured = null;
@@ -27,16 +31,16 @@ function createTextBitmap(text, font, color) {
 }
 
 function createDigitSheet() {
-  const sheet = new OffscreenCanvas(DIGIT_WIDTH * 12, DIGIT_HEIGHT);
+  const sheet = new OffscreenCanvas(DIGIT_WIDTH * 13, DIGIT_HEIGHT);
   const c = sheet.getContext("2d", { alpha: true, willReadFrequently: false });
   c.imageSmoothingEnabled = false;
   c.font = "40px monospace";
   c.textAlign = "center";
   c.textBaseline = "middle";
-  c.fillStyle = "#ffcc00";
+  c.fillStyle = "#9d7cff";
 
   const chars = "0123456789 ms";
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < 13; i++) {
     c.fillText(
       chars[i],
       i * DIGIT_WIDTH + (DIGIT_WIDTH >> 1),
@@ -87,7 +91,8 @@ function drawDigits(ms, x, y) {
 function render(state, ms) {
   if (!ctx) return;
 
-  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = colors[state] || colors[0] || "#0040c0";
+  ctx.fillRect(0, 0, W, H);
 
   const cx = W >> 1;
   const cy = H >> 1;
@@ -112,13 +117,32 @@ function render(state, ms) {
   }
 }
 
-function renderLoop() {
+function renderLoop(now) {
+  if (reportOnset) {
+    reportOnset = false;
+    self.postMessage({ type: "onset", abs: performance.timeOrigin + now });
+  }
   if (stateView) {
     const currentState = Atomics.load(stateView, 0);
     if (currentState !== lastState) {
+      if (currentState !== 1) {
+        armed = false;
+      }
       const ms = Atomics.load(stateView, 1);
       render(currentState, ms);
+      if (currentState === 2 && lastState !== 2) {
+        reportOnset = true;
+      }
       lastState = currentState;
+    } else if (
+      armed &&
+      lastState === 1 &&
+      performance.timeOrigin + now >= deadlineAbs
+    ) {
+      armed = false;
+      render(2, 0);
+      lastState = 2;
+      reportOnset = true;
     }
   }
   requestAnimationFrame(renderLoop);
@@ -131,12 +155,13 @@ self.onmessage = (e) => {
       canvas = msg.canvas;
       W = msg.size.W;
       H = msg.size.H;
+      colors = msg.colors || [];
       if (msg.stateBuffer) {
         stateBuffer = msg.stateBuffer;
         stateView = new Uint32Array(stateBuffer);
       }
       ctx = canvas.getContext("2d", {
-        alpha: true,
+        alpha: false,
         desynchronized: true,
         willReadFrequently: false,
       });
@@ -145,18 +170,18 @@ self.onmessage = (e) => {
       ctx.textBaseline = "middle";
 
       textIdle = createTextBitmap(
-        "Click to begin",
+        "click to begin",
         "24px monospace",
         "#ffffff",
       );
       textMeasured = createTextBitmap(
-        "Click to begin next trial",
+        "click for next trial",
         "20px monospace",
         "#ffffff",
       );
       textFalseStart = createTextBitmap(
-        "False start! Click to restart trial",
-        "28px monospace",
+        "too soon — click to retry",
+        "24px monospace",
         "#ffffff",
       );
       digitSheet = createDigitSheet();
@@ -165,6 +190,10 @@ self.onmessage = (e) => {
         requestAnimationFrame(renderLoop);
       }
       return;
+    case "arm":
+      deadlineAbs = msg.deadlineAbs;
+      armed = true;
+      break;
     case "resize":
       W = msg.size.W;
       H = msg.size.H;
@@ -176,13 +205,8 @@ self.onmessage = (e) => {
         ctx.imageSmoothingEnabled = false;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        render(msg.state, msg.ms || 0);
-        lastState = msg.state;
+        render(lastState >= 0 ? lastState : msg.state, msg.ms || 0);
       }
-      break;
-    case "paint":
-      render(msg.state, msg.ms);
-      lastState = msg.state;
       break;
   }
 };
